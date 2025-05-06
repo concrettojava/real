@@ -43,7 +43,10 @@ void MainWindow::onImportSucceeded(const QString &experimentName,const QStringLi
     QMessageBox::information(this, "导入成功", message);
 
     // 一步完成所有初始化
-    m_videoPlayer = new VideoPlayer(this,&videoList);
+    m_videoPlayer = new VideoPlayer(this,videoList);
+
+    // 初始化视频播放器，传递布局
+    m_videoPlayer->initialize(ui->gridLayout);
 
     // 连接按钮
     connect(ui->singelViewButton, &QPushButton::clicked, m_videoPlayer, &VideoPlayer::playSingle);
