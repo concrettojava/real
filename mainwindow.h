@@ -25,11 +25,6 @@ private slots:
     void onImportSucceeded(const QString &experimentName,const QStringList &videoList);
     //导入失败处理
     void onImportFailed(const QString &errorMessage);
-    //画面切换相应
-    void btnSingleClicked();
-    void btnMainClicked();
-    void btnGlobalClicked();
-
 
 private:
     Ui::MainWindow *ui;

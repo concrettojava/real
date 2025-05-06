@@ -1,132 +1,328 @@
 #include "videoplayer.h"
-#include "QDebug"
+#include <QDebug>
+#include <QFileInfo>
+#include <QMediaContent>
+#include <QPixmap>
+#include <QDir>
 
-VideoPlayer::VideoPlayer(QObject *parent,const QStringList &videoPathList)
-    : QObject{parent}, m_layout(nullptr), m_currentLayout(0)
+VideoPlayer::VideoPlayer(QObject *parent, const QStringList &videoList)
+    : QObject(parent)
+    , m_videoList(videoList)
 {
-    m_videoList = videoPathList;
-}
-
-void VideoPlayer::initialize(QGridLayout *layout){
-    m_layout = layout;
-}
-
-
-void VideoPlayer::stopAllVideos()
-{
-    for (auto player : m_players) {
-        player->stop();
-    }
 }
 
 VideoPlayer::~VideoPlayer()
 {
-    stopAllVideos();
-
-    // 释放资源
-    for (auto player : m_players) {
-        player->deleteLater();
+    // 清理资源
+    for (QMediaPlayer *player : m_mediaPlayers) {
+        player->stop();
+        delete player;
     }
 
-    for (auto widget : m_videoWidgets) {
-        widget->deleteLater();
+    for (QVideoWidget *widget : m_videoWidgets) {
+        delete widget;
     }
 
-    m_players.clear();
-    m_videoWidgets.clear();
-}
-
-void VideoPlayer::playSingle(int index){
-
-    if (m_videoList.isEmpty() || index >= m_videoList.size()) {
-        qDebug() << "没有可播放的视频文件或索引无效";
-        return;
+    for (QPushButton *button : m_thumbnailButtons) {
+        delete button;
     }
-
-    stopAllVideos();
-    clearLayout();
-    m_currentLayout = 1;
-
-    // 创建单个播放器
-    createPlayer(index);
-
-    // 添加到布局
-    addPlayerToLayout(m_videoWidgets.last(), 0, 0);
-
-    // 开始播放
-    m_players.last()->play();
-    m_players.last()->stop();
 }
 
-void VideoPlayer::playMain(){
-
-}
-
-void VideoPlayer::playGlobal(){
-
-}
-
-void VideoPlayer::createPlayer(int index)
+void VideoPlayer::initialize(QGridLayout *singleLayout, QGridLayout *mainLayout, QGridLayout *globalLayout,QScrollArea *scrollArea)
 {
-    if (index >= m_videoList.size()) {
+    m_singleLayout = singleLayout;
+    m_mainLayout = mainLayout;
+    m_globalLayout = globalLayout;
+
+    m_scrollArea = scrollArea;
+    // 验证是否有视频
+    if (m_videoList.isEmpty()) {
+        qDebug() << "没有可播放的视频";
         return;
     }
 
-    // 创建媒体播放器
-    QMediaPlayer *player = new QMediaPlayer(this);
-
-    // 创建视频窗口
-    QVideoWidget *videoWidget = new QVideoWidget;
-    videoWidget->setAspectRatioMode(Qt::KeepAspectRatio);
-
-    // 设置播放器和视频窗口的关联
-    player->setVideoOutput(videoWidget);
-
-    // 设置媒体源
-    player->setMedia(QUrl::fromLocalFile(m_videoList.at(index)));
-
-    // 添加到列表
-    m_players.append(player);
-    m_videoWidgets.append(videoWidget);
+    // 根据初始模式设置UI
+    playSingle();
 }
 
-void VideoPlayer::clearLayout()
+void VideoPlayer::clearLayout(QLayout* layout)
 {
-    if (!m_layout) {
-        return;
+    if (!layout) return;
+
+    // 暂停所有播放器
+    for (QMediaPlayer *player : m_mediaPlayers) {
+        player->stop();
     }
 
-    // 从布局中移除所有项
-    while (m_layout->count() > 0) {
-        QLayoutItem *item = m_layout->takeAt(0);
+    // 清理布局中的所有项目
+    while (layout->count() > 0) {
+        QLayoutItem* item = layout->takeAt(0);
+        if (item->layout()) {
+            clearLayout(item->layout());
+            delete item->layout();
+        }
         if (item->widget()) {
             item->widget()->hide();
         }
         delete item;
     }
-
-    // 清除播放器和视频窗口
-    for (auto player : m_players) {
-        player->stop();
-        player->deleteLater();
-    }
-
-    for (auto widget : m_videoWidgets) {
-        widget->deleteLater();
-    }
-
-    m_players.clear();
-    m_videoWidgets.clear();
 }
 
-void VideoPlayer::addPlayerToLayout(QVideoWidget *videoWidget, int row, int col)
+void VideoPlayer::createThumbnails()
 {
-    if (!m_layout || !videoWidget) {
-        qDebug() <<"没有关联的布局以放置视频";
+    // 清理旧的缩略图按钮
+    for (QPushButton *button : m_thumbnailButtons) {
+        delete button;
+    }
+    m_thumbnailButtons.clear();
+
+    if (!m_scrollArea) {
+        qDebug() << "无法找到滚动区域";
         return;
     }
 
-    videoWidget->show();
-    m_layout->addWidget(videoWidget, row, col);
+    // 获取滚动区域内容
+    QWidget *scrollContent = m_scrollArea->widget();
+    QHBoxLayout *scrollLayout = nullptr;
+
+    // 检查是否已经有布局
+    if (scrollContent->layout()) {
+        scrollLayout = qobject_cast<QHBoxLayout*>(scrollContent->layout());
+
+        // 清理旧布局
+        while (scrollLayout->count() > 0) {
+            QLayoutItem* item = scrollLayout->takeAt(0);
+            if (item->widget()) {
+                delete item->widget();
+            }
+            delete item;
+        }
+    } else {
+        scrollLayout = new QHBoxLayout(scrollContent);
+        scrollLayout->setContentsMargins(5, 5, 5, 5);
+        scrollLayout->setSpacing(10);
+    }
+
+    // 为每个视频创建缩略图按钮
+    for (int i = 0; i < m_videoList.size(); ++i) {
+        QString videoPath = m_videoList.at(i);
+        QFileInfo fileInfo(videoPath);
+
+        // 创建按钮
+        QPushButton *button = new QPushButton();
+        button->setFixedSize(100, 80);
+        button->setProperty("videoIndex", i);
+
+        // 设置文本为视频文件名
+        button->setText(fileInfo.fileName());
+        button->setStyleSheet("QPushButton { text-align: center; padding: 2px; }");
+
+        // 连接点击信号
+        connect(button, &QPushButton::clicked, this, &VideoPlayer::onThumbnailClicked);
+
+        // 添加到布局
+        scrollLayout->addWidget(button);
+        m_thumbnailButtons.append(button);
+    }
+
+    // 添加弹簧项以确保缩略图靠左对齐
+    scrollLayout->addStretch();
 }
 
+void VideoPlayer::playSingle()
+{
+    // 切换到单视角模式
+    m_currentMode = Single;
+
+    // 清理当前布局
+    clearLayout(m_singleLayout);
+    clearLayout(m_mainLayout);
+    clearLayout(m_globalLayout);
+
+    // 如果没有视频，直接返回
+    if (m_videoList.isEmpty()) {
+        qDebug() << "没有视频可播放";
+        return;
+    }
+
+    // 创建媒体播放器和视频窗口
+    QMediaPlayer *player = new QMediaPlayer(this);
+    QVideoWidget *videoWidget = new QVideoWidget();
+
+    // 设置播放器对应的视频输出窗口
+    player->setVideoOutput(videoWidget);
+
+    // 添加到布局
+    m_singleLayout->addWidget(videoWidget, 0, 0);
+
+    // 存储播放器和视频窗口
+    m_mediaPlayers.clear();
+    m_videoWidgets.clear();
+    m_mediaPlayers.append(player);
+    m_videoWidgets.append(videoWidget);
+
+    // 创建缩略图
+    createThumbnails();
+
+    // 默认播放第一个视频
+    playVideoByIndex(m_currentVideoIndex);
+}
+
+void VideoPlayer::playMain()
+{
+    // 切换到主视角模式
+    m_currentMode = Main;
+
+    // 清理当前布局
+    clearLayout(m_mainLayout);
+
+    // 如果没有视频，直接返回
+    if (m_videoList.isEmpty()) {
+        qDebug() << "没有视频可播放";
+        return;
+    }
+
+    // 创建媒体播放器和视频窗口
+    QMediaPlayer *player = new QMediaPlayer(this);
+    QVideoWidget *videoWidget = new QVideoWidget();
+
+    // 设置播放器对应的视频输出窗口
+    player->setVideoOutput(videoWidget);
+
+    // 添加到布局
+    m_mainLayout->addWidget(videoWidget, 0, 0);
+
+    // 存储播放器和视频窗口
+    m_mediaPlayers.clear();
+    m_videoWidgets.clear();
+    m_mediaPlayers.append(player);
+    m_videoWidgets.append(videoWidget);
+
+    // 播放主视角（如果有的话，否则播放第一个）
+    // 通常可以根据规则选择主视角，这里简单处理为第一个视频
+    playVideoByIndex(0);
+}
+
+void VideoPlayer::playGlobal()
+{
+    // 切换到全局视角模式
+    m_currentMode = Global;
+
+    // 清理当前布局
+    clearLayout(m_mainLayout);
+
+    // 如果没有视频，直接返回
+    if (m_videoList.isEmpty()) {
+        qDebug() << "没有视频可播放";
+        return;
+    }
+
+    // 确定网格的行和列数（基于视频数量来确定合适的布局）
+    int count = m_videoList.size();
+    int cols = qMin(3, count); // 最多3列
+    int rows = (count + cols - 1) / cols; // 计算需要多少行
+
+    // 创建多个媒体播放器和视频窗口
+    m_mediaPlayers.clear();
+    m_videoWidgets.clear();
+
+    for (int i = 0; i < count; ++i) {
+        QMediaPlayer *player = new QMediaPlayer(this);
+        QVideoWidget *videoWidget = new QVideoWidget();
+
+        // 设置播放器对应的视频输出窗口
+        player->setVideoOutput(videoWidget);
+
+
+        // 计算行列位置
+        int row = i / cols;
+        int col = i % cols;
+
+        // 添加到布局
+        m_mainLayout->addWidget(videoWidget, row, col);
+
+        // 存储播放器和视频窗口
+        m_mediaPlayers.append(player);
+        m_videoWidgets.append(videoWidget);
+
+        // 设置视频路径并播放
+        player->setMedia(QUrl::fromLocalFile(m_videoList.at(i)));
+    }
+
+    // 全部开始播放
+    for (QMediaPlayer *player : m_mediaPlayers) {
+        player->play();
+    }
+}
+
+void VideoPlayer::playVideoByIndex(int index)
+{
+    if (index < 0 || index >= m_videoList.size()) {
+        qDebug() << "无效的视频索引:" << index;
+        return;
+    }
+
+    // 更新当前索引
+    m_currentVideoIndex = index;
+
+    // 获取视频路径
+    QString videoPath = m_videoList.at(index);
+    qDebug() << "播放视频:" << videoPath;
+
+    // 设置媒体源并播放
+    if (!m_mediaPlayers.isEmpty()) {
+        QMediaPlayer *player = m_mediaPlayers.first();
+        player->setMedia(QUrl::fromLocalFile(videoPath));
+        player->play();
+    }
+
+    // 更新高亮显示的缩略图
+    for (int i = 0; i < m_thumbnailButtons.size(); ++i) {
+        QPushButton *button = m_thumbnailButtons.at(i);
+        if (i == index) {
+            button->setStyleSheet("QPushButton { background-color: #ADD8E6; text-align: center; padding: 2px; }");
+        } else {
+            button->setStyleSheet("QPushButton { text-align: center; padding: 2px; }");
+        }
+    }
+}
+
+void VideoPlayer::play()
+{
+    for (QMediaPlayer *player : m_mediaPlayers) {
+        player->play();
+    }
+}
+
+void VideoPlayer::pause()
+{
+    for (QMediaPlayer *player : m_mediaPlayers) {
+        player->pause();
+    }
+}
+
+void VideoPlayer::stop()
+{
+    for (QMediaPlayer *player : m_mediaPlayers) {
+        player->stop();
+    }
+}
+
+void VideoPlayer::onThumbnailClicked()
+{
+    // 获取发送者
+    QPushButton *button = qobject_cast<QPushButton*>(sender());
+    if (!button) {
+        return;
+    }
+
+    // 获取视频索引
+    bool ok;
+    int index = button->property("videoIndex").toInt(&ok);
+    if (!ok) {
+        return;
+    }
+
+    // 播放对应索引的视频
+    playVideoByIndex(index);
+}

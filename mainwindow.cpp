@@ -46,12 +46,27 @@ void MainWindow::onImportSucceeded(const QString &experimentName,const QStringLi
     m_videoPlayer = new VideoPlayer(this,videoList);
 
     // 初始化视频播放器，传递布局
-    m_videoPlayer->initialize(ui->gridLayout);
+    m_videoPlayer->initialize(ui->gridLayout, ui->gridLayout_2, ui->gridLayout_3,ui->scrollArea);
 
-    // 连接按钮
-    connect(ui->singelViewButton, &QPushButton::clicked, m_videoPlayer, &VideoPlayer::playSingle);
-    connect(ui->mainViewButton, &QPushButton::clicked, m_videoPlayer, &VideoPlayer::playMain);
-    connect(ui->globalViewButton, &QPushButton::clicked, m_videoPlayer, &VideoPlayer::playGlobal);
+    // 连接标签页切换信号
+    connect(ui->videoTab, &QTabWidget::currentChanged, this, [this](int index) {
+        if (!m_videoPlayer) return;
+
+        switch (index) {
+        case 0: // 单视角
+            m_videoPlayer->playSingle();
+            ui->statusbar->showMessage("单视角回放");
+            break;
+        case 1: // 主视角
+            m_videoPlayer->playMain();
+            ui->statusbar->showMessage("高速摄像机回放");
+            break;
+        case 2: // 全览
+            m_videoPlayer->playGlobal();
+            ui->statusbar->showMessage("全局视角");
+            break;
+        }
+    });
 
     // 更新UI以反映新的数据
     updateUI();
@@ -68,27 +83,3 @@ void MainWindow::onImportFailed(const QString &errorMessage)
 void MainWindow::updateUI(){
     ui->expNameLabel->setText(m_dbImporter->getExperimentName());
 }
-
-void MainWindow::btnSingleClicked(){
-    qDebug() << "切换到单视角";
-    m_videoPlayer->playSingle();
-    ui->statusbar->showMessage("单视角回放");
-}
-
-void MainWindow::btnMainClicked(){
-    qDebug() << "切换到高速摄像机视角";
-    m_videoPlayer->playMain();
-    ui->statusbar->showMessage("高速摄像机回放");
-}
-
-void MainWindow::btnGlobalClicked(){
-    qDebug() << "切换到全部影像视角";
-    m_videoPlayer->playGlobal();
-    ui->statusbar->showMessage("全局视角");
-}
-
-
-
-
-
-
