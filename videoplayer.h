@@ -13,6 +13,11 @@
 #include <QScrollArea>
 #include <QList>
 
+// 前向声明UI类，避免头文件循环依赖
+namespace Ui {
+class MainWindow;
+}
+
 class VideoPlayer : public QObject
 {
     Q_OBJECT
@@ -22,7 +27,7 @@ public:
     ~VideoPlayer();
 
     // 初始化视频播放器
-    void initialize(QGridLayout *singleLayout, QGridLayout *mainLayout, QGridLayout *globalLayout,QScrollArea *scrollArea);
+    void initialize(Ui::MainWindow *ui= nullptr);
 
 public slots:
     // 播放模式
@@ -41,11 +46,7 @@ private slots:
 
 private:
     // 布局
-    QGridLayout *m_singleLayout = nullptr;
-    QGridLayout *m_mainLayout = nullptr;
-    QGridLayout *m_globalLayout = nullptr;
-
-    QScrollArea *m_scrollArea = nullptr;
+    Ui::MainWindow *m_ui =nullptr;
 
     // 清除当前布局
     void clearLayout(QLayout* layout);

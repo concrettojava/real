@@ -46,7 +46,7 @@ void MainWindow::onImportSucceeded(const QString &experimentName,const QStringLi
     m_videoPlayer = new VideoPlayer(this,videoList);
 
     // 初始化视频播放器，传递布局
-    m_videoPlayer->initialize(ui->gridLayout, ui->gridLayout_2, ui->gridLayout_3,ui->scrollArea);
+    m_videoPlayer->initialize(ui);
 
     // 连接标签页切换信号
     connect(ui->videoTab, &QTabWidget::currentChanged, this, [this](int index) {

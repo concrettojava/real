@@ -4,6 +4,7 @@
 #include <QMediaContent>
 #include <QPixmap>
 #include <QDir>
+#include "ui_mainwindow.h"
 
 VideoPlayer::VideoPlayer(QObject *parent, const QStringList &videoList)
     : QObject(parent)
@@ -28,13 +29,9 @@ VideoPlayer::~VideoPlayer()
     }
 }
 
-void VideoPlayer::initialize(QGridLayout *singleLayout, QGridLayout *mainLayout, QGridLayout *globalLayout,QScrollArea *scrollArea)
+void VideoPlayer::initialize(Ui::MainWindow *ui)
 {
-    m_singleLayout = singleLayout;
-    m_mainLayout = mainLayout;
-    m_globalLayout = globalLayout;
-
-    m_scrollArea = scrollArea;
+    m_ui = ui;
     // 验证是否有视频
     if (m_videoList.isEmpty()) {
         qDebug() << "没有可播放的视频";
@@ -62,10 +59,17 @@ void VideoPlayer::clearLayout(QLayout* layout)
             delete item->layout();
         }
         if (item->widget()) {
-            item->widget()->hide();
+            delete item->widget();
         }
         delete item;
     }
+
+    // 清空媒体播放器和视频控件列表
+    qDeleteAll(m_mediaPlayers);
+    m_mediaPlayers.clear();
+
+    // 视频控件已在上面的循环中删除，这里只需清空列表
+    m_videoWidgets.clear();
 }
 
 void VideoPlayer::createThumbnails()
@@ -76,13 +80,13 @@ void VideoPlayer::createThumbnails()
     }
     m_thumbnailButtons.clear();
 
-    if (!m_scrollArea) {
+    if (!m_ui->scrollArea) {
         qDebug() << "无法找到滚动区域";
         return;
     }
 
     // 获取滚动区域内容
-    QWidget *scrollContent = m_scrollArea->widget();
+    QWidget *scrollContent = m_ui->scrollArea->widget();
     QHBoxLayout *scrollLayout = nullptr;
 
     // 检查是否已经有布局
@@ -135,9 +139,9 @@ void VideoPlayer::playSingle()
     m_currentMode = Single;
 
     // 清理当前布局
-    clearLayout(m_singleLayout);
-    clearLayout(m_mainLayout);
-    clearLayout(m_globalLayout);
+    clearLayout(m_ui->singleGrid);
+    clearLayout(m_ui->mainGrid);
+    clearLayout(m_ui->globalGrid);
 
     // 如果没有视频，直接返回
     if (m_videoList.isEmpty()) {
@@ -153,11 +157,10 @@ void VideoPlayer::playSingle()
     player->setVideoOutput(videoWidget);
 
     // 添加到布局
-    m_singleLayout->addWidget(videoWidget, 0, 0);
+    m_ui->singleGrid->addWidget(videoWidget, 0, 0);
 
     // 存储播放器和视频窗口
-    m_mediaPlayers.clear();
-    m_videoWidgets.clear();
+
     m_mediaPlayers.append(player);
     m_videoWidgets.append(videoWidget);
 
@@ -174,7 +177,9 @@ void VideoPlayer::playMain()
     m_currentMode = Main;
 
     // 清理当前布局
-    clearLayout(m_mainLayout);
+    clearLayout(m_ui->singleGrid);
+    clearLayout(m_ui->mainGrid);
+    clearLayout(m_ui->globalGrid);
 
     // 如果没有视频，直接返回
     if (m_videoList.isEmpty()) {
@@ -182,25 +187,32 @@ void VideoPlayer::playMain()
         return;
     }
 
-    // 创建媒体播放器和视频窗口
-    QMediaPlayer *player = new QMediaPlayer(this);
-    QVideoWidget *videoWidget = new QVideoWidget();
+    // 确定要播放的视频数量（最多4个）
+    int videoCount = qMin(4, m_videoList.size());
 
-    // 设置播放器对应的视频输出窗口
-    player->setVideoOutput(videoWidget);
+    // 创建网格布局排列视频（2x2格式）
+    for (int i = 0; i < videoCount; i++) {
+        // 创建媒体播放器和视频窗口
+        QMediaPlayer *player = new QMediaPlayer(this);
+        QVideoWidget *videoWidget = new QVideoWidget();
 
-    // 添加到布局
-    m_mainLayout->addWidget(videoWidget, 0, 0);
+        // 设置播放器对应的视频输出窗口
+        player->setVideoOutput(videoWidget);
 
-    // 存储播放器和视频窗口
-    m_mediaPlayers.clear();
-    m_videoWidgets.clear();
-    m_mediaPlayers.append(player);
-    m_videoWidgets.append(videoWidget);
+        // 添加到布局（2x2网格）
+        int row = i / 2;
+        int col = i % 2;
+        m_ui->mainGrid->addWidget(videoWidget, row, col);
 
-    // 播放主视角（如果有的话，否则播放第一个）
-    // 通常可以根据规则选择主视角，这里简单处理为第一个视频
-    playVideoByIndex(0);
+        // 存储播放器和视频窗口
+        m_mediaPlayers.append(player);
+        m_videoWidgets.append(videoWidget);
+
+        // 直接设置媒体并播放
+        QString videoPath = m_videoList.at(i);
+        player->setMedia(QUrl::fromLocalFile(videoPath));
+        player->play();
+    }
 }
 
 void VideoPlayer::playGlobal()
@@ -209,7 +221,9 @@ void VideoPlayer::playGlobal()
     m_currentMode = Global;
 
     // 清理当前布局
-    clearLayout(m_mainLayout);
+    clearLayout(m_ui->singleGrid);
+    clearLayout(m_ui->mainGrid);
+    clearLayout(m_ui->globalGrid);
 
     // 如果没有视频，直接返回
     if (m_videoList.isEmpty()) {
@@ -221,10 +235,6 @@ void VideoPlayer::playGlobal()
     int count = m_videoList.size();
     int cols = qMin(3, count); // 最多3列
     int rows = (count + cols - 1) / cols; // 计算需要多少行
-
-    // 创建多个媒体播放器和视频窗口
-    m_mediaPlayers.clear();
-    m_videoWidgets.clear();
 
     for (int i = 0; i < count; ++i) {
         QMediaPlayer *player = new QMediaPlayer(this);
@@ -239,7 +249,7 @@ void VideoPlayer::playGlobal()
         int col = i % cols;
 
         // 添加到布局
-        m_mainLayout->addWidget(videoWidget, row, col);
+        m_ui->globalGrid->addWidget(videoWidget, row, col);
 
         // 存储播放器和视频窗口
         m_mediaPlayers.append(player);
