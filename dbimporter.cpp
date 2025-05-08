@@ -4,6 +4,7 @@
 #include <QSqlError>
 #include <QDebug>
 #include <QSqlQuery>
+#include <QSettings>
 
 DbImporter::DbImporter(QObject *parent)
     :QObject(parent){}
@@ -41,6 +42,8 @@ bool DbImporter::importDatabase()
         emit importFailed(QString("加载数据失败"));
         return false;
     }
+    // 保存成功导入的数据库路径
+    saveLastDatabase();
 
     emit importSucceeded(m_experimentName,videoList);
     return true;
@@ -78,3 +81,48 @@ bool DbImporter::loadDataFromDatabase(){
 QString DbImporter::getExperimentName() const{
     return m_experimentName;
 }
+
+// 在DbImporter类中添加此方法
+void DbImporter::saveLastDatabase()
+{
+    QSettings settings("YourCompany", "ExperimentViewer");
+    settings.setValue("lastDatabase", m_dbFilePath);
+}
+
+// 在DbImporter类中添加此方法
+bool DbImporter::loadLastDatabase()
+{
+    QSettings settings("YourCompany", "ExperimentViewer");
+    QString lastDbPath = settings.value("lastDatabase").toString();
+
+    if (lastDbPath.isEmpty() || !QFile::exists(lastDbPath)) {
+        return false;
+    }
+
+    m_dbFilePath = lastDbPath;
+
+    // 提取实验名称(使用文件名)
+    QFileInfo fileInfo(lastDbPath);
+    m_experimentName = fileInfo.baseName();
+
+    // 尝试打开数据库
+    m_db = QSqlDatabase::addDatabase("QSQLITE");
+    m_db.setDatabaseName(lastDbPath);
+
+    if(!m_db.open()) {
+        emit importFailed(QString("无法打开数据库:%1").arg(m_db.lastError().text()));
+        return false;
+    }
+
+    if (!loadDataFromDatabase()) {
+        emit importFailed(QString("加载数据失败"));
+        return false;
+    }
+
+    emit importSucceeded(m_experimentName, videoList);
+    return true;
+}
+
+
+
+

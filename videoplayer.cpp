@@ -212,6 +212,7 @@ void VideoPlayer::playMain()
         QString videoPath = m_videoList.at(i);
         player->setMedia(QUrl::fromLocalFile(videoPath));
         player->play();
+        player->pause();
     }
 }
 
@@ -284,6 +285,7 @@ void VideoPlayer::playVideoByIndex(int index)
         QMediaPlayer *player = m_mediaPlayers.first();
         player->setMedia(QUrl::fromLocalFile(videoPath));
         player->play();
+        player->pause();
     }
 
     // 更新高亮显示的缩略图

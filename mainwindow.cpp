@@ -2,7 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QMessageBox>
 #include <QDebug>
-
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -21,6 +21,8 @@ MainWindow::MainWindow(QWidget *parent)
     //初始化播放按钮图标
     ui->play_stop_Btn->setIcon(QIcon(":/icon/play_icon.png"));
     ui->play_stop_Btn->setEnabled(false);
+    // 尝试加载上次的数据库
+    QTimer::singleShot(100, m_dbImporter, &DbImporter::loadLastDatabase);
 
     // 初始化UI
     updateUI();
@@ -71,6 +73,7 @@ void MainWindow::onImportSucceeded(const QString &experimentName,const QStringLi
             break;
         }
     });
+
 
     //启用播放按钮
     connect(ui->play_stop_Btn,&QPushButton::clicked,m_videoPlayer,&VideoPlayer::play_pause);

@@ -18,17 +18,18 @@ public:
 
 public slots:
     bool importDatabase();
+    bool loadLastDatabase();
 
 signals:
     void importSucceeded(const QString &experimentName,const QStringList &videoList);
     void importFailed(const QString &errorMessage);
-
 private:
     QString m_dbFilePath;
     QString m_experimentName;
     QSqlDatabase m_db;
     bool loadDataFromDatabase();
     QStringList videoList;
+    void saveLastDatabase();
 
 };
 
