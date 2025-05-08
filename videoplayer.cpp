@@ -297,24 +297,15 @@ void VideoPlayer::playVideoByIndex(int index)
     }
 }
 
-void VideoPlayer::play()
+void VideoPlayer::play_pause()
 {
     for (QMediaPlayer *player : m_mediaPlayers) {
-        player->play();
-    }
-}
-
-void VideoPlayer::pause()
-{
-    for (QMediaPlayer *player : m_mediaPlayers) {
-        player->pause();
-    }
-}
-
-void VideoPlayer::stop()
-{
-    for (QMediaPlayer *player : m_mediaPlayers) {
-        player->stop();
+        // Check current state and toggle
+        if (player->state() == QMediaPlayer::PlayingState) {
+            player->pause();
+        } else {
+            player->play();
+        }
     }
 }
 

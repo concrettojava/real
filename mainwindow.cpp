@@ -18,6 +18,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_dbImporter,&DbImporter::importSucceeded,this,&MainWindow::onImportSucceeded);
     connect(m_dbImporter,&DbImporter::importFailed,this,&MainWindow::onImportFailed);
 
+    //初始化播放按钮图标
+    ui->play_stop_Btn->setIcon(QIcon(":/icon/play_icon.png"));
+    ui->play_stop_Btn->setEnabled(false);
+
     // 初始化UI
     updateUI();
 }
@@ -68,6 +72,10 @@ void MainWindow::onImportSucceeded(const QString &experimentName,const QStringLi
         }
     });
 
+    //启用播放按钮
+    connect(ui->play_stop_Btn,&QPushButton::clicked,m_videoPlayer,&VideoPlayer::play_pause);
+    ui->play_stop_Btn->setEnabled(true);
+
     // 更新UI以反映新的数据
     updateUI();
 
@@ -79,6 +87,7 @@ void MainWindow::onImportFailed(const QString &errorMessage)
     // 导入失败后的处理
     QMessageBox::critical(this, "导入失败", errorMessage);
 }
+
 
 void MainWindow::updateUI(){
     ui->expNameLabel->setText(m_dbImporter->getExperimentName());

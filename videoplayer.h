@@ -36,9 +36,7 @@ public slots:
     void playGlobal();   // 全局视角播放
 
     // 播放控制
-    void play();
-    void pause();
-    void stop();
+    void play_pause();
 
 private slots:
     // 内部槽函数
